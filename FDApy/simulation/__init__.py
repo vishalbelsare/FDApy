@@ -1,11 +1,14 @@
-"""
-Simulation module.
+"""Simulation module."""
 
-This module provides a full simulation toolbox for univariate and multivariate
-functional data. The data are simulated based on a truncated Karhunen-Loève
-expansion of functional data.
+import lazy_loader as lazy
 
-We provide functions to simulate for
-    .. classification / clustering
-    .. functional linear mixed model
-"""
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submodules=["brownian", "datasets", "karhunen", "simulation"],
+    submod_attrs={
+        "simulation": ["Simulation"],
+        "brownian": ["Brownian"],
+        "datasets": ["Datasets"],
+        "karhunen": ["KarhunenLoeve"],
+    },
+)

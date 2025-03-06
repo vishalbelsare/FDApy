@@ -1,17 +1,24 @@
 #!/usr/bin/env python
 # -*-coding:utf8 -*
 
-"""Simulation class
--------------------
+"""
+Simulation class
+----------------
 
 """
 import numpy as np
+import numpy.typing as npt
 
 from abc import ABC, abstractmethod
-from typing import Callable, Optional
+from typing import Callable
 
+from ..representation.argvals import DenseArgvals, IrregularArgvals
+from ..representation.values import DenseValues, IrregularValues
 from ..representation.functional_data import (
-    DenseFunctionalData, IrregularFunctionalData, MultivariateFunctionalData
+    DenseFunctionalData,
+    IrregularFunctionalData,
+    BasisFunctionalData,
+    MultivariateFunctionalData,
 )
 
 
@@ -20,7 +27,7 @@ from ..representation.functional_data import (
 def _add_noise_univariate_data(
     data: DenseFunctionalData,
     noise_variance: float = 1.0,
-    rnorm: Callable = np.random.normal
+    rnorm: Callable = np.random.normal,
 ) -> DenseFunctionalData:
     r"""Add noise to univariate functional data.
 
@@ -35,27 +42,27 @@ def _add_noise_univariate_data(
 
     Parameters
     ----------
-    data: DenseFunctionalData
+    data
         Functional data to add the noise.
-    noise_variance: float, default=1.0
+    noise_variance
         The variance :math:`\sigma^2` of the Gaussian noise that is added
         to the data.
-    rnorm: Callable, default=np.random.normal
+    rnorm
         Random data generator.
 
     Returns
     -------
-    noisy_data: DenseFunctionalData
+    DenseFunctionalData
         Noisy version of the functional data.
 
     """
     # Get parameter of the data
-    shape_simu = data.n_obs, *tuple(data.n_points.values())
+    shape_simu = data.n_obs, *data.n_points
 
     noisy_data = rnorm(0, 1, shape_simu)
     std_noise = np.sqrt(noise_variance)
     noisy_data = data.values + np.multiply(std_noise, noisy_data)
-    return DenseFunctionalData(data.argvals, noisy_data)
+    return DenseFunctionalData(DenseArgvals(data.argvals), DenseValues(noisy_data))
 
 
 #############################################################################
@@ -65,7 +72,7 @@ def _sparsify_univariate_data(
     percentage: float = 0.9,
     epsilon: float = 0.05,
     runif: Callable = np.random.uniform,
-    rchoice: Callable = np.random.choice
+    rchoice: Callable = np.random.choice,
 ) -> IrregularFunctionalData:
     r"""Sparsify univariate functional data.
 
@@ -79,97 +86,99 @@ def _sparsify_univariate_data(
 
     Parameters
     ----------
-    data: DenseFunctionalData
+    data
         Functional data to sparsify.
-    percentage: float, default=0.9
+    percentage
         The percentage of observations to be retained.
-    epsilon: float, default=0.05
+    epsilon
         The uncertainty around the percentage of observations to be
         retained.
-    runif: Callable, default=np.random.uniform
+    runif
         Random data generator.
-    rchoice: Callable, default=np.random.choice
+    rchoice
         Random data generator.
 
     Returns
     -------
-    sparse_data: IrregularFunctionalData
+    IrregularFunctionalData
         Sparse version of the functional data.
 
     """
     # Get parameters of the data
-    n_obs, n_points = data.n_obs, data.n_points['input_dim_0']
-    points = np.arange(n_points)
+    n_obs, n_points = data.n_obs, np.prod(data.n_points)
 
-    perc = runif(
-        max(0, percentage - epsilon),
-        min(1, percentage + epsilon),
-        n_obs
-    )
+    perc = runif(max(0, percentage - epsilon), min(1, percentage + epsilon), n_obs)
 
     argvals, values = {}, {}
     for idx, (obs, perc_obs) in enumerate(zip(data, perc)):
-        size = np.around(n_points * perc_obs).astype(int)
-        indices = np.sort(rchoice(n_points, size=size, replace=False))
-        argvals[idx] = obs.argvals['input_dim_0'][points[indices]]
-        values[idx] = obs.values[0][points[indices]]
-    return IrregularFunctionalData({'input_dim_0': argvals}, values)
+        mask = rchoice([False, True], size=n_points, p=(1 - perc_obs, perc_obs))
+        if np.sum(mask) < 2:
+            mask[rchoice(np.arange(n_points), size=2)] = True
+        val = obs[0].values.flatten()
+        val[~mask] = np.nan
+        argvals[idx] = data.argvals
+        values[idx] = val.reshape(data.n_points)
+    return IrregularFunctionalData(IrregularArgvals(argvals), IrregularValues(values))
 
 
 #############################################################################
 # Class Simulation
 class Simulation(ABC):
-    """Class that defines functional data simulation.
+    """Define the structure of Simulation.
 
     Parameters
     ----------
-    basis_name: str
+    basis_name
         Name of the simulation
-    random_state: int, default=None
+    random_state
         A seed to initialize the random number generator.
 
     Attributes
     ----------
-    data: DenseFunctionalData or MultivariateFunctionalData
+    data: DenseFunctionalData | MultivariateFunctionalData
         An object that represents the simulated data.
-    noisy_data: DenseFunctionalData or MultivariateFunctionalData
+    noisy_data: DenseFunctionalData | MultivariateFunctionalData
         An object that represents a noisy version of the simulated data.
-    sparse_data: IrregularFunctionalData or MultivariateFunctionalData
+    sparse_data: IrregularFunctionalData | MultivariateFunctionalData
         An object that represents a sparse version of the simulated data.
 
     """
 
+    ###########################################################################
+    # Checkers
     def _check_data(self) -> None:
         """Check if self has the attribut data."""
-        if not hasattr(self, 'data'):
+        if self.data is None:
             raise ValueError(
-                'No data have been found in the simulation.'
-                ' Please run new() before add_noise() or sparsify().'
+                "No data have been found in the simulation."
+                " Please run new() before add_noise() or sparsify()."
             )
 
     def _check_dimension(self) -> None:
         """Check if self.data has the right dimension."""
         if (
-            (
-                isinstance(self.data, DenseFunctionalData) and
-                self.data.n_dim > 1
-            ) or (
-                isinstance(self.data, MultivariateFunctionalData) and
-                all(n_dim > 1 for n_dim in self.data.n_dim)
+            (isinstance(self.data, DenseFunctionalData) and self.data.n_dimension > 1)
+            or (
+                isinstance(self.data, BasisFunctionalData) and self.data.n_dimension > 1
+            )
+            or (
+                isinstance(self.data, MultivariateFunctionalData)
+                and all(n_dim > 1 for n_dim in self.data.n_dimension)
             )
         ):
             raise ValueError(
-                'The sparsification is not implemented for data'
-                ' with dimension larger than 1.'
+                "The sparsification is not implemented for data"
+                " with dimension larger than 1."
             )
 
-    def __init__(
-        self,
-        basis_name: str,
-        random_state: Optional[int] = None
-    ) -> None:
+    ###########################################################################
+
+    ###########################################################################
+    # Magic methods
+    def __init__(self, basis_name: str, random_state: int | None = None) -> None:
         """Initialize Simulation object."""
         super().__init__()
+        self.data = None
         self.basis_name = basis_name
 
         if random_state is not None:
@@ -177,6 +186,10 @@ class Simulation(ABC):
         else:
             self.random_state = None
 
+    ###########################################################################
+
+    ###########################################################################
+    # Properties
     @property
     def basis_name(self) -> str:
         """Getter for basis_name."""
@@ -186,20 +199,25 @@ class Simulation(ABC):
     def basis_name(self, new_basis_name: str) -> None:
         self._basis_name = new_basis_name
 
+    ###########################################################################
+
+    ###########################################################################
+    # Abstract methods
     @abstractmethod
     def new(
         self,
         n_obs: int,
-        argvals: Optional[np.ndarray] = None,
-        **kwargs
+        n_clusters: int = 1,
+        argvals: npt.NDArray[np.float64] | None = None,
+        **kwargs,
     ) -> None:
         """Simulate a new set of curves."""
-        pass
 
-    def add_noise(
-        self,
-        noise_variance: float = 1.0
-    ) -> None:
+    ###########################################################################
+
+    ###########################################################################
+    # Methods
+    def add_noise(self, noise_variance: float = 1.0) -> None:
         r"""Add noise to functional data objects.
 
         This function generates an artificial noisy version of a functional
@@ -214,9 +232,14 @@ class Simulation(ABC):
 
         Parameters
         ----------
-        noise_variance: float, default=1.0
+        noise_variance
             The variance :math:`\sigma^2` of the Gaussian noise that is added
             to the data.
+
+        Returns
+        -------
+        None
+            Create the class attribute `noisy_data`.
 
         """
         self._check_data()
@@ -235,15 +258,11 @@ class Simulation(ABC):
             self.noisy_data = MultivariateFunctionalData(
                 [
                     _add_noise_univariate_data(data, noise_variance, rnorm)
-                    for data in self.data
+                    for data in self.data.data
                 ]
             )
 
-    def sparsify(
-        self,
-        percentage: float = 0.9,
-        epsilon: float = 0.05
-    ) -> None:
+    def sparsify(self, percentage: float = 0.9, epsilon: float = 0.05) -> None:
         r"""Generate a sparse version of functional data objects.
 
         This function generates an artificially sparsified version of a
@@ -256,11 +275,16 @@ class Simulation(ABC):
 
         Parameters
         ----------
-        percentage: float, default=0.9
+        percentage
             The percentage of observations to be retained.
-        epsilon: float, default=0.05
+        epsilon
             The uncertainty around the percentage of observations to be
             retained.
+
+        Returns
+        -------
+        None
+            Create the class attribute `sparse_data`.
 
         """
         self._check_data()
@@ -281,8 +305,45 @@ class Simulation(ABC):
         else:
             self.sparse_data = MultivariateFunctionalData(
                 [
-                    _sparsify_univariate_data(
-                        data, percentage, epsilon, runif, rchoice
-                    ) for data in self.data
+                    _sparsify_univariate_data(data, percentage, epsilon, runif, rchoice)
+                    for data in self.data.data
                 ]
             )
+
+    def add_noise_and_sparsify(
+        self,
+        noise_variance: float = 1.0,
+        percentage: float = 0.9,
+        epsilon: float = 0.05,
+    ) -> None:
+        r"""Generate a noisy and sparse version of functional data objects.
+
+        This function generates an artificially noisy and sparse version of a
+        functional datasets. From a functional dataset, it first generates the
+        noisy version and then the sparse version based on the noisy one.
+
+        Parameters
+        ----------
+        noise_variance
+            The variance :math:`\sigma^2` of the Gaussian noise that is added
+            to the data.
+        percentage
+            The percentage of observations to be retained.
+        epsilon
+            The uncertainty around the percentage of observations to be
+            retained.
+
+        Returns
+        -------
+        None
+            Create the class attributes `noisy_data` and `sparse_data`.
+
+        """
+        self.add_noise(noise_variance=noise_variance)
+
+        tmp = self.data
+        self.data = self.noisy_data
+        self.sparsify(percentage=percentage, epsilon=epsilon)
+        self.data = tmp
+
+    ###########################################################################

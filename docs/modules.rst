@@ -4,12 +4,10 @@ API References
 .. toctree::
 	:includehidden:
 	:maxdepth: 2
+	:caption: Modules
 	:titlesonly:
 
 	modules/representation
 	modules/preprocessing
-	modules/regression
-	modules/clustering
-	modules/visualization
 	modules/simulation
 	modules/misc

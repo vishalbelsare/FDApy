@@ -1,21 +1,43 @@
-doc-warnings: yes
 strictness: veryhigh
-max-line-length: 70
+max-line-length: 88
+doc-warnings: yes
+
+ignore-paths:
+    - .github
+    - build
+    - docs
+    - examples
+    - tests
+
 requirements:
     - requirements.txt
+
 pylint:
     run: false
+
 pyflakes:
     run: false
+
 mccabe:
     run: false
+
 pep8:
+    run: true
     disable:
-      - E501
+        - E203
+
 pep257:
+    run: true
+
+pydocstyle:
+    run: true
+    convention: numpy
     disable:
-      - D203
-      - D212
-      - D213
-      - D406
-      - D407
+        # Whitespace issues
+        - D203
+        - D205
+        - D212
+        - D213
+        # Docstring content issues
+        - D400
+        - D415

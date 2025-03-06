@@ -1,16 +1,63 @@
 #!/usr/bin/env python
 # -*-coding:utf8 -*
-"""Module that contains utility functions.
+"""
+Utility functions
+-----------------
 
-This module is used to define diverse helper functions. These functions are
-designed to standardize, manipulate and do computation on array.
 """
 import itertools
 import numpy as np
 import numpy.typing as npt
 import scipy
 
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, List, Tuple
+
+#############################################################################
+# Constants
+#############################################################################
+DIFF_SEQUENCES = {
+    1: np.array([0.7071, -0.7071]),
+    2: np.array([0.8090, -0.5, -0.3090]),
+    3: np.array([0.1942, 0.2809, 0.3832, -0.8582]),
+    4: np.array([0.2708, -0.0142, 0.6909, -0.4858, -0.4617]),
+    5: np.array([0.9064, -0.2600, -0.2167, -0.1774, -0.1420, -0.1103]),
+    6: np.array([0.2400, 0.0300, -0.0342, 0.7738, -0.3587, -0.3038, -0.3472]),
+    7: np.array(
+        [0.9302, -0.1965, -0.1728, -0.1506, -0.1299, -0.1107, -0.0930, -0.0768]
+    ),
+    8: np.array(
+        [0.2171, 0.0467, -0.0046, -0.0348, 0.8207, -0.2860, -0.2453, -0.2260, -0.2879]
+    ),
+    9: np.array(
+        [
+            0.9443,
+            -0.1578,
+            -0.1429,
+            -0.1287,
+            -0.1152,
+            -0.1025,
+            -0.0905,
+            -0.0792,
+            -0.0687,
+            -0.0588,
+        ]
+    ),
+    10: np.array(
+        [
+            0.1995,
+            0.0539,
+            0.0104,
+            -0.0140,
+            -0.0325,
+            0.8510,
+            -0.2384,
+            -0.2079,
+            -0.1882,
+            -0.1830,
+            -0.2507,
+        ]
+    ),
+}
 
 
 #############################################################################
@@ -18,8 +65,8 @@ from typing import Dict, Optional, Tuple
 #############################################################################
 def _normalization(
     x: npt.NDArray[np.float64],
-    max_x: float = np.nan,
-    min_x: float = np.nan
+    max_x: float | None = None,
+    min_x: float | None = None,
 ) -> npt.NDArray[np.float64]:
     r"""Normalize a vector :math:`[a, b]` into a vector :math:`[0, 1]`.
 
@@ -30,25 +77,25 @@ def _normalization(
 
     Parameters
     ----------
-    x: np.ndarray, shape=(n_obs,)
+    x
         Vector of data
-    max_x: float, default=None
+    max_x
         Maximum value
-    min_x: float, default=None
+    min_x
         Minimum value
 
     Returns
     -------
-    np.array, shape = (n_obs,)
+    npt.NDArray[np.float64], shape=(n_obs,)
         Vector of standardized data.
 
     Example
     -------
-    _normalization(np.array([0, 5, 10]))
-    > array([0., 0.5, 1.])
+    >>> _normalization(np.array([0, 5, 10]))
+    array([0., 0.5, 1.])
 
     """
-    if (np.isnan(max_x)) and (np.isnan(min_x)):
+    if (max_x is None) and (min_x is None):
         max_x = np.amax(x)
         min_x = np.amin(x)
     if max_x == min_x:
@@ -69,18 +116,18 @@ def _standardization(
 
     Parameters
     ----------
-    x: np.ndarray, shape=(n_obs,)
+    x
         Vector of data
 
     Returns
     -------
-    np.ndarray, shape = (n_obs,)
+    npt.NDArray[np.float64], shape=(n_obs,)
         Vector of standardized data.
 
     Example
     -------
-    _standardization(np.array([0, 5, 10]))
-    > array([-1.22474487, 0., 1.22474487])
+    >>> _standardization(np.array([0, 5, 10]))
+    array([-1.22474487, 0., 1.22474487])
 
     """
     if np.std(x) == 0:
@@ -89,141 +136,133 @@ def _standardization(
         return (x - np.mean(x)) / np.std(x)
 
 
-def _row_mean(
-    x: npt.NDArray[np.float64]
-) -> npt.NDArray[np.float64]:
+def _row_mean(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """Compute the mean of an array with respect to the rows.
 
     This function computes the mean of an array with respect to the rows.
 
     Parameters
     ----------
-    x: np.ndarray, shape = (n_obs, n_features)
+    x
         Matrix of data
 
     Returns
     -------
-    np.ndarray, shape = (n_features,)
+    npt.NDArray[np.float64], shape=(n_features,)
         Vector of means
 
     Example
     -------
-    _row_mean(
-        np.array(
-            [
-                [1., 2., 3.],
-                [1., 2., 3.],
-                [1., 2., 3.],
-                [1., 2., 3.]
-            ]
-        )
-    )
-    > array([1., 2., 3.])
+    >>> _row_mean(
+    ...     np.array(
+    ...         [
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.]
+    ...         ]
+    ...     )
+    ... )
+    array([1., 2., 3.])
 
     """
     return np.mean(x, axis=0)
 
 
-def _row_var(
-    x: npt.NDArray[np.float64]
-) -> npt.NDArray[np.float64]:
+def _row_var(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """Compute the variance of an array with respect to the rows.
 
     This function computes the variance of the rows of an array.
 
     Parameters
     ----------
-    x: np.ndarray, shape = (n_obs, n_features)
+    x
         Matrix of data
 
     Returns
     -------
-    np.ndarray, shape = (n_features,)
+    npt.NDArray[np.float64], shape = (n_features,)
         Vector of variances
 
     Example
     -------
-    _row_var(
-        np.array(
-            [
-                [1., 2., 3.],
-                [1., 2., 3.],
-                [1., 2., 3.],
-                [1., 2., 3.]
-            ]
-        )
-    )
-    > array([0., 0., 0.])
+    >>> _row_var(
+    ...     np.array(
+    ...         [
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.]
+    ...         ]
+    ...     )
+    ... )
+    array([0., 0., 0.])
 
     """
     return x.var(axis=0)
 
 
-def _col_mean(
-    x: npt.NDArray[np.float64]
-) -> npt.NDArray[np.float64]:
+def _col_mean(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """Compute the mean of an array with respect to the columns.
 
     This function computes the mean of an array with respect to the columns.
 
     Parameters
     ----------
-    x: np.ndarray, shape = (n_obs, n_features)
+    x
         Matrix of data
 
     Returns
     -------
-    np.ndarray, shape = (n_obs,)
+    npt.NDArray[np.float64], shape=(n_obs,)
         Vector of means
 
     Example
     -------
-    _col_mean(
-        np.array(
-            [
-                [1., 2., 3.],
-                [1., 2., 3.],
-                [1., 2., 3.],
-                [1., 2., 3.]
-            ]
-        )
-    )
-    > array([2., 2., 2., 2.])
+    >>> _col_mean(
+    ...     np.array(
+    ...         [
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.]
+    ...         ]
+    ...     )
+    ... )
+    array([2., 2., 2., 2.])
 
     """
     return x.mean(axis=1)
 
 
-def _col_var(
-    x: npt.NDArray[np.float64]
-) -> npt.NDArray[np.float64]:
+def _col_var(x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """Compute the variance of an array with respect to the columns.
 
     This function computes the variance of the column of an array.
 
     Parameters
     ----------
-    x: np.ndarray, shape = (n_obs, n_features)
+    x
         Matrix of data
 
     Returns
     -------
-    np.ndarray, shape = (n_obs,)
+    npt.NDArray[np.float64], shape=(n_obs,)
         Vector of variances
 
     Example
     -------
-    _col_var(
-        np.array(
-            [
-                [1., 2., 3.],
-                [1., 2., 3.],
-                [1., 2., 3.],
-                [1., 2., 3.]
-            ]
-        )
-    )
-    > array([0.66666667, 0.66666667, 0.66666667, 0.66666667])
+    >>> _col_var(
+    ...     np.array(
+    ...         [
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.],
+    ...             [1., 2., 3.]
+    ...         ]
+    ...     )
+    ... )
+    array([0.66666667, 0.66666667, 0.66666667, 0.66666667])
 
     """
     return x.var(axis=1)
@@ -233,17 +272,15 @@ def _col_var(
 # Array manipulation functions.
 ############################################################################
 
-def _get_axis_dimension(
-    x: npt.NDArray[np.float64],
-    axis: int = 0
-) -> int:
+
+def _get_axis_dimension(x: npt.NDArray[np.float64], axis: int = 0) -> int:
     """Get the dimension of an array :math:`X` along the `axis`.
 
     Parameters
     ----------
-    x: np.ndarray[np.float64], shape=(n_obs, n_features)
+    x
         Matrix of data
-    axis: int, default=0
+    axis
         Integer value that represents the axis along which the dimension of the
         array is to be computed. The default value is 0.
 
@@ -254,74 +291,71 @@ def _get_axis_dimension(
 
     Example
     -------
-    x = np.array([[1, 2], [4, 5], [7, 8]])
-    _get_axis_dimension(x, 0)
-    > 3
-    _get_axis_dimension(x, 1)
-    > 2
+    >>> x = np.array([[1, 2], [4, 5], [7, 8]])
+    >>> _get_axis_dimension(x, 0)
+    3
+    >>> _get_axis_dimension(x, 1)
+    2
 
     """
     return x.shape[axis]
 
 
-def _get_dict_dimension(
-    x: Dict[str, npt.NDArray[np.float64]]
-) -> Tuple[int, ...]:
+def _get_dict_dimension(x: Dict[str, npt.NDArray[np.float64]]) -> Tuple[int, ...]:
     """Return the shape of an object defined as a dict of np.ndarray.
 
     Parameters
     ----------
-    x: dict
+    x
         Dictionary containing keys as string and values as numpy array.
 
     Returns
     -------
-    tuple
+    Tuple[int, ...]
         Tuple containing the shape of the arrays defined in the dictionary.
 
     Example
     -------
-    x = {
-        'a': np.array([1, 2, 3]),
-        'b': np.array([4, 5])
-    }
-    _get_dict_dimension(x)
-    > (3, 2)
+    >>> x = {
+    ...     'a': np.array([1, 2, 3]),
+    ...     'b': np.array([4, 5])
+    ... }
+    >>> _get_dict_dimension(x)
+    (3, 2)
 
     """
     return tuple(el.shape[0] for el in x.values())
 
 
 def _get_obs_shape(
-    x: Dict[str, Dict[int, npt.NDArray[np.float64]]],
-    obs: int
+    x: Dict[str, Dict[int, npt.NDArray[np.float64]]], obs: int
 ) -> Tuple[int, ...]:
     """Get the shape of `obs` if `X` is a nested dict.
 
     Parameters
     ----------
-    x: dict
+    x
         Nested dictionary containing the data, where the first level of keys
         are strings and the second level of keys are integers representing the
         observation number.
-    obs: int
+    obs
         Observation number for which to get the shape.
 
     Returns
     -------
-    tuple
+    Tuple[int, ...]
         Tuple containing the shape of the `obs`-th observation.
 
     Example
     -------
-    x = {
-        'a': {0: np.array([1, 2, 3]), 1: np.array([4, 5])},
-        'b': {0: np.array([1, 2]), 1: np.array([3, 4])}
-    }
-    _get_obs_shape(x, 0)
-    > (3, 2)
-    _get_obs_shape(x, 1)
-    > (2, 2)
+    >>> x = {
+    ...     'a': {0: np.array([1, 2, 3]), 1: np.array([4, 5])},
+    ...     'b': {0: np.array([1, 2]), 1: np.array([3, 4])}
+    ... }
+    >>> _get_obs_shape(x, 0)
+    (3, 2)
+    >>> _get_obs_shape(x, 1)
+    (2, 2)
 
     """
     shapes = tuple(el[obs].shape for el in x.values())
@@ -329,9 +363,7 @@ def _get_obs_shape(
 
 
 def _shift(
-    x: npt.NDArray[np.float64],
-    num: int = 0,
-    fill_value: float = np.nan
+    x: npt.NDArray[np.float64], num: int = 0, fill_value: float = np.nan
 ) -> npt.NDArray[np.float64]:
     """Shift an array.
 
@@ -339,22 +371,22 @@ def _shift(
 
     Parameters
     ----------
-    x: np.ndarray, shape=(n_obs, n_features)
+    x
         Matrix of data
-    num: int, default=0
+    num
         The number of columns to shift.
-    fill_value: float or np.nan
+    fill_value
         The value with one fill the array.
 
     Returns
     -------
-    np.ndarray, shape = (n_obs, n_features)
+    npt.NDArray[np.float64], shape=(n_obs, n_features)
         The shift array.
 
     Example
     -------
-    _shift(np.array([1, 2, 3, 4, 5]), num=2, fill_value=np.nan)
-    > array([nan, nan, 1., 2., 3.])
+    >>> _shift(np.array([1, 2, 3, 4, 5]), num=2, fill_value=np.nan)
+    array([nan, nan, 1., 2., 3.])
 
     References
     ----------
@@ -374,14 +406,251 @@ def _shift(
     return res
 
 
+def _cartesian_product(
+    *arrays: List[npt.NDArray[np.float64]],
+) -> npt.NDArray[np.float64]:
+    """Compute the cartesian product of a list of arrays.
+
+    Parameters
+    ----------
+    arrays
+        List of arrays
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        The Cartedian product betwwen the (argument) arrays.
+
+    Example
+    -------
+    >>> _cartesian_product(np.array([1, 2]))
+    array([
+        [1],
+        [2]
+    ])
+
+    >>> _cartesian_product(np.array([0, 1]), np.array([1, 2, 3]))
+    array([
+        [0, 1],
+        [0, 2],
+        [0, 3],
+        [1, 1],
+        [1, 2],
+        [1, 3]
+    ])
+
+    >>> _cartesian_product(
+    ...     np.array([0, 1]), np.array([1, 2]), np.array([2, 3])
+    ... )
+    array([
+        [0, 1, 2],
+        [0, 1, 3],
+        [0, 2, 2],
+        [0, 2, 3],
+        [1, 1, 2],
+        [1, 1, 3],
+        [1, 2, 2],
+        [1, 2, 3]
+    ])
+
+    """
+    meshgrids = np.meshgrid(*arrays, indexing="ij")
+    stacked = np.column_stack([m.ravel() for m in meshgrids])
+    return stacked
+
+
+def _block_diag(*arrs: npt.NDArray[np.float_]):
+    """Create a block diagonal matrix from provided arrays.
+
+    Given the inputs `A`, `B` and `C`, the output will have these
+    arrays arranged on the diagonal::
+
+        [[A, 0, 0],
+         [0, B, 0],
+         [0, 0, C]]
+
+    Parameters
+    ----------
+    arrs
+        Input arrays.
+
+    Returns
+    -------
+    D: npt.NDArray[np.float_]
+        Array with `A`, `B`, `C`, ... on the diagonal. `D` has the
+        same dtype as `A`.
+
+    Notes
+    -----
+    The method is adapted from the `scipy.linalg.block_diag` function [1]_ without
+    types checking and empty array handling. If all the input arrays are square, the
+    output is known as a block diagonal matrix.
+
+    References
+    ----------
+    .. [1] Pauli Virtanen, Ralf Gommers, Travis E. Oliphant, Matt Haberland, Tyler
+        Reddy, David Cournapeau, Evgeni Burovski, Pearu Peterson, Warren Weckesser,
+        Jonathan Bright, Stéfan J. van der Walt, Matthew Brett, Joshua Wilson, K. Jarrod
+        Millman, Nikolay Mayorov, Andrew R. J. Nelson, Eric Jones, Robert Kern, Eric
+        Larson, CJ Carey, İlhan Polat, Yu Feng, Eric W. Moore, Jake VanderPlas, Denis
+        Laxalde, Josef Perktold, Robert Cimrman, Ian Henriksen, E.A. Quintero, Charles R
+        Harris, Anne M. Archibald, Antônio H. Ribeiro, Fabian Pedregosa, Paul van
+        Mulbregt, and SciPy 1.0 Contributors. (2020) SciPy 1.0: Fundamental Algorithms
+        for Scientific Computing in Python. Nature Methods, 17(3), 261-272.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scipy.linalg import block_diag
+    >>> A = [[1, 0],
+    ...      [0, 1]]
+    >>> B = [[3, 4, 5],
+    ...      [6, 7, 8]]
+    >>> C = [[7]]
+    >>> block_diag(A, B, C)
+    array([[1, 0, 0, 0, 0, 0],
+           [0, 1, 0, 0, 0, 0],
+           [0, 0, 3, 4, 5, 0],
+           [0, 0, 6, 7, 8, 0],
+           [0, 0, 0, 0, 0, 7]])
+
+    """
+    shapes = np.array([a.shape for a in arrs])
+    out = np.zeros(np.sum(shapes, axis=0), dtype="float64")
+
+    r, c = 0, 0
+    for i, (rr, cc) in enumerate(shapes):
+        out[r : r + rr, c : c + cc] = arrs[i]
+        r += rr
+        c += cc
+    return out
+
+
 ##############################################################################
 # Array computation
 ##############################################################################
 
+
+def _integration_weights(
+    x: npt.NDArray[np.float64], method: str | Callable = "trapz"
+) -> npt.NDArray[np.float64]:
+    """Compute integration weights.
+
+    Compute weights for numerical integration over the domain `X` given
+    the method `method`.
+
+    Parameters
+    ----------
+    x
+        Domain on which compute the weights.
+    method
+        The method to compute the weights.
+
+    Returns
+    -------
+    npt.NDArray[np.float64], shape=(n_points,)
+        The integration weights.
+
+    Example
+    -------
+    >>> _integration_weights(np.array([1, 2, 3, 4, 5]), method='trapz')
+    array([0.5, 1., 1., 1., 0.5])
+    >>> _integration_weights(np.array([1, 2, 3, 4, 5]), method='simpson')
+    array([0.33333333, 1.33333333, 0.66666667, 1.33333333, 0.33333333])
+
+    References
+    ----------
+    * https://en.wikipedia.org/wiki/Trapezoidal_rule
+    * https://en.wikipedia.org/wiki/Simpson%27s_rule
+
+    """
+    if method == "trapz":
+        weights = 0.5 * np.concatenate(
+            (
+                np.array([x[1] - x[0]]),
+                (x[2 : len(x)] - x[: (len(x) - 2)]),
+                np.array([x[len(x) - 1] - x[len(x) - 2]]),
+            ),
+            axis=None,
+        )
+    elif method == "simpson":
+        weights = (
+            np.concatenate(
+                (
+                    np.array([x[1] - x[0]]),
+                    [
+                        4 * h if idx % 2 == 0 else 2 * h
+                        for idx, h in enumerate(x[1 : (len(x) - 1)] - x[: (len(x) - 2)])
+                    ],
+                    np.array([x[len(x) - 1] - x[len(x) - 2]]),
+                ),
+                axis=None,
+            )
+            / 3
+        )
+    elif callable(method):
+        weights = method(x)
+    else:
+        raise NotImplementedError(f"{method} not implemented!")
+    return weights  # type: ignore
+
+
+def _integrate(
+    y: npt.NDArray[np.float64], *args: npt.NDArray[np.float64], method: str = "simpson"
+) -> float:
+    r"""Compute an estimate of the integral of 1-dimensional curve.
+
+    This function computes an estimation of the integral of :math:`y(x)` over
+    the domain :math:`x`:
+
+    .. math:: \int y(x)dx
+
+    Parameters
+    ----------
+    y
+        Observations
+    args
+        Domain for the integration, it has to be ordered.
+    method
+        The method used to integrated.
+
+    Returns
+    -------
+    float
+        Estimation of the integration of :math:`y(x)`.
+
+    Example
+    -------
+    >>> X = np.array([1, 2, 4])
+    >>> Y = np.array([1, 4, 16])
+    >>> _integrate(Y, X)
+    21.0
+
+    >>> X = np.array([1, 2, 4])
+    >>> Y = np.array([1, 2])
+    >>> Z = np.array([[1, 2], [4, 5], [7, 8]])
+    >>> _integrate(Z, X, Y)
+    15.75
+
+    """
+    if method == "simpson":
+        integrate = scipy.integrate.simpson
+    elif method == "trapz":
+        integrate = np.trapz
+    else:
+        raise ValueError(f"{method} not implemented!")
+
+    temp = integrate(x=args[0], y=y, axis=0)
+    for dimension in args[1:]:
+        temp = integrate(x=dimension, y=temp, axis=0)
+    return temp
+
+
 def _inner_product(
     x: npt.NDArray[np.float64],
     y: npt.NDArray[np.float64],
-    axis: Optional[npt.NDArray[np.float64]] = None
+    *axis: npt.NDArray[np.float64] | None,
+    method: str = "trapz",
 ) -> float:
     r"""Compute the inner product between two curves.
 
@@ -395,13 +664,15 @@ def _inner_product(
 
     Parameters
     ----------
-    x: np.ndarray
+    x
         First curve considered.
-    y: np.ndarray
+    y
         Second curve considered.
-    axis: np.ndarray, default=None
+    axis
         Domain of integration. If ``axis`` is ``None``, the domain is set to be
         a regular grid on :math:`[0, 1]` with ``len(x)`` number of points.
+    method
+        The method used to integrated.
 
     Returns
     -------
@@ -410,76 +681,19 @@ def _inner_product(
 
     Example
     -------
-    _inner_product(np.array([1, 2, 3]), np.array([4, 5, 6]))
-    > 10.5
+    >>> _inner_product(np.array([1, 2, 3]), np.array([4, 5, 6]))
+    10.5
 
     """
     if x.shape != y.shape:
         raise ValueError("Arguments x and y do not have the same shape.")
-    if axis is None:
-        axis = np.linspace(0, 1, x.shape[0])
-    return np.trapz(x=axis, y=x * y)
-
-
-def _inner_product_2d(
-    x: npt.NDArray[np.float64],
-    y: npt.NDArray[np.float64],
-    primary_axis: Optional[npt.NDArray[np.float64]] = None,
-    secondary_axis: Optional[npt.NDArray[np.float64]] = None
-) -> float:
-    r"""Compute the inner product between two surfaces.
-
-    This function computes the inner product between two surfaces. The inner
-    product is defined as
-
-    .. math::
-        \langle x, y \rangle = \int_{\mathcal{T}} x(t)y(t)dt =
-        \int_{\mathcal{T}_1}\int_{\mathcal{T}_2} x(t_1t_2)y(t_1t_2)dt_1 dt_2,
-        t = (t_1, t_2) \in \mathcal{T} = \mathcal{T}_1 \times \mathcal{T}_2
-
-    where :math:`\mathcal{T}` is a 2-dimensional domain.
-
-    Parameters
-    ----------
-    x: np.ndarray
-        First surface considered.
-    y: np.ndarray
-        Second surface considered.
-    primary_axis: np.ndarray, default=None
-        Domain of integration for the primary axis. If ``primary_axis`` is
-        ``None``, the domain is set to be a regular grid on :math:`[0, 1]` with
-        ``len(x)`` number of points.
-    secondary_axis: np.ndarray, default=None
-        Domain of integration for the secondary axis. If ``secondary_axis`` is
-        ``None``, the domain is set to be a regular grid on :math:`[0, 1]` with
-        ``len(x)`` number of points.
-
-    Returns
-    -------
-    float
-        The inner product between ``x`` and ``y``.
-
-    Example
-    -------
-    _inner_product_2d(
-        np.array([[1, 2, 3], [4, 5, 6], [1, 2, 3]])
-        np.array([[4, 5, 6], [1, 2, 3], [4, 5, 6]])
-    )
-    > 10.5
-
-    """
-    if x.shape != y.shape:
-        raise ValueError("Arguments x and y do not have the same shape.")
-    if primary_axis is None:
-        primary_axis = np.linspace(0, 1, x.shape[0])
-    if secondary_axis is None:
-        secondary_axis = np.linspace(0, 1, x.shape[1])
-    return np.trapz(x=secondary_axis, y=np.trapz(x=primary_axis, y=x * y))
+    if len(axis) == 0:
+        axis = [np.linspace(0, 1, i) for i in x.shape[::-1]]
+    return _integrate(x * y, *axis, method=method)
 
 
 def _outer(
-    x: npt.NDArray[np.float64],
-    y: npt.NDArray[np.float64]
+    x: npt.NDArray[np.float64], y: npt.NDArray[np.float64]
 ) -> npt.NDArray[np.float64]:
     """Compute the tensor product of two vectors.
 
@@ -487,124 +701,200 @@ def _outer(
 
     Parameters
     ----------
-    x: np.ndarray, shape=(n_obs1,)
+    x
         First input vector
-    y: np.ndarray, shape=(n_obs2,)
+    y
         Second input vector
 
     Returns
     -------
-    np.ndarray, shape=(n_obs1, n_obs2)
+    npt.NDArray[np.float64], shape=(n_obs1, n_obs2)
         Tensor product between ``x`` and ``y``.
 
     Example
     -------
-    X = np.array([1, 2, 3])
-    Y = np.array([-1, 2])
-    _outer(X, Y)
-    > array([[-1, 2], [-2, 4], [-3, 6]])
+    >>> X = np.array([1, 2, 3])
+    >>> Y = np.array([-1, 2])
+    >>> _outer(X, Y)
+    array([[-1, 2], [-2, 4], [-3, 6]])
 
     """
     return np.outer(x, y)
 
 
-def _integrate(
-    x: npt.NDArray[np.float64],
-    y: npt.NDArray[np.float64],
-    method: str = 'simpson'
-) -> float:
-    """Compute an estimate of the integral.
-
-    This function computes an estimation of the integral of :math:`Y` over the
-    domain :math:`X`.
+def _select_number_eigencomponents(
+    eigenvalues: npt.NDArray[np.float64], percentage: float | int | None = None
+) -> int:
+    """Select the number of eigencomponents.
 
     Parameters
     ----------
-    x: np.ndarray, shape = (n_features,)
-        Domain for the integration, it has to be ordered.
-    y: np.ndarray, shape = (n_features,)
-        Observations
-    method : str, {'simpson', 'trapz'}, default = 'simpson'
-        The method used to integrated.
+    eigenvalues
+        An estimation of the eigenvalues.
+    percentage
+        Number of components to keep. If `percentage` is `None`, all
+        components are kept, ``percentage == len(eigenvalues)``.
+        If `percentage` is an integer, `percentage` components are kept. If
+        `0 < percentage < 1`, select the number of components such that the
+        amount of variance that needs to be explained is greater than the
+        percentage specified by `percentage`.
+
+    Returns
+    -------
+    int
+        Number of eigenvalues to retain.
+
+    """
+    if isinstance(percentage, int):
+        return percentage
+    elif isinstance(percentage, float) and (percentage < 1):
+        var_explained = np.cumsum(eigenvalues) / np.sum(eigenvalues)
+        return np.sum(var_explained < percentage) + 1
+    elif percentage is None:
+        return len(eigenvalues)
+    else:
+        raise ValueError("The `percentage` parameter is not correct.")
+
+
+def _eigh(
+    matrix: npt.NDArray[np.float64], UPLO: str = "L"  # noqa
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Return the eigenvalues and eigenvectors of a real symmetrix matrix.
+
+    Returns two objects, a 1-D array containing the eigenvalues of `matrix`,
+    and a 2-D square array of the corresponding eigenvectors (in columns).
+    This function overrides ``numpy.linalg.eigh`` by returning the eigenvalues
+    in descending order.
+
+    Parameters
+    ----------
+    matrix
+        Hermitian or real symmetric matrices whose eigenvalues and eigenvectors
+        are to be computed.
+    UPLO
+        Specifies whether the calculation is done with the lower triangular
+        part of a ('L', default) or the upper triangular part ('U').
+        Irrespective of this value only the real parts of the diagonal will be
+        considered in the computation to preserve the notion of a Hermitian
+        matrix. It therefore follows that the imaginary part of the diagonal
+        will always be treated as zero.
+
+    Returns
+    -------
+    Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        The first element represents the eigenvalues in descending order, each
+        repeated according to its multiplicity. The second element represents
+        the normalized eigenvectors. The column ``v[:, i]`` of the eigenvectors
+        matrix corresponds to the eigenvalue ``w[i]``.
+
+    """
+    eigenvalues, eigenvectors = np.linalg.eigh(matrix, UPLO)
+    return np.real(eigenvalues[::-1]), np.real(np.fliplr(eigenvectors))
+
+
+def _compute_eigen(
+    data: npt.NDArray[np.float64],
+    n_components: np.float64 | np.int64 | None = None,
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Compute the eigendecomposition of a matrix.
+
+    This function computes the eigendecomposition of a matrix and returns the
+    selected components based on an estimation of the number of components.
+
+    Parameters
+    ----------
+    data
+        The array to diagonalize. Depending on the context, it could the
+        covariance matrix or the inner-product matrix.
+    n_components
+        Number of components to keep. If `n_components` is `None`, all
+        components are kept, ``n_components == min(n_samples, n_features)``.
+        If `n_components` is an integer, `n_components` are kept. If
+        `0 < n_components < 1`, select the number of components such that the
+        amount of variance that needs to be explained is greater than the
+        percentage specified by `n_components`.
+
+    Returns
+    -------
+    Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        A tuple containing the eigenvalues and the eigenvectors of the inner
+        product matrix.
+
+    """
+    # Diagonalization of the matrix
+    # eigenvalues, eigenvectors = _eigh(data)
+    eigenvalues, eigenvectors = np.linalg.eig(data)
+    eigenvalues = np.real(eigenvalues)
+    eigenvectors = np.real(eigenvectors)
+
+    # Estimation of the number of components
+    eigenvalues[eigenvalues < 0] = 0
+    npc = _select_number_eigencomponents(eigenvalues, n_components)
+    return eigenvalues[:npc], eigenvectors[:, :npc]
+
+
+def _compute_covariance(
+    eigenvalues: npt.NDArray[np.float64], eigenfunctions: npt.NDArray[np.float64]
+) -> npt.NDArray[np.float64]:
+    """Compute the covariance matrix using Mercer's theorem.
+
+    Parameters
+    ----------
+    eigenvalues
+        The singular values corresponding to each of selected components.
+    eigenfunctions
+        An array representing the eigenfunctions.
+
+    Returns
+    -------
+    npt.NDArray[np.float64]
+        An estimation of the covariance using Mercer's theorem.
+
+    References
+    ----------
+    .. [1] Mercer, J. (1909), Functions of positive and negative type and their
+    connection with the theory of integral equations, Philosophical
+    Transactions of the Royal Society A, 209 (441-458): 415-446.
+
+    """
+    temp = np.dot(np.transpose(eigenfunctions), np.diag(eigenvalues))
+    return np.dot(temp, eigenfunctions)
+
+
+def _estimate_noise_variance(x: npt.NDArray[np.float64], order: int = 2) -> float:
+    """Estimate the variance of the noise.
+
+    This function estimates the variance of the noise non-parametrically using
+    the methodology developed in [1]_. The estimator is based on the difference
+    of observed values.
+
+    Parameters
+    ----------
+    x
+        Vector of observed values.
+    order
+        Order of the difference sequence. The order has to be between 1 and 10.
 
     Returns
     -------
     float
-        Estimation of the integration of Y over X.
-
-    Example
-    -------
-    >>> X = np.array([1, 2, 4])
-    >>> Y = np.array([1, 4, 16])
-    >>> _integrate(X, Y)
-    21.0
-
-    """
-    if method == 'simpson':
-        return scipy.integrate.simps(x=x, y=y)  # type: ignore
-    elif method == 'trapz':
-        return np.trapz(x=x, y=y)
-    else:
-        raise ValueError(f'{method} not implemented!')
-
-
-def _integration_weights(
-    x: npt.NDArray[np.float64],
-    method: str = 'trapz'
-) -> npt.NDArray[np.float64]:
-    """Compute integration weights.
-
-    Compute weights for numerical integration over the domain `X` given
-    the method `method`.
-
-    Parameters
-    ----------
-    x: np.ndarray, shape = (n_points,)
-        Domain on which compute the weights.
-    method: str or callable, default = 'trapz'
-        The method to compute the weights.
-
-    Returns
-    -------
-    np.ndarray, shape = (n_points,)
-        The integration weights
-
-    Example
-    -------
-    _integration_weights(np.array([1, 2, 3, 4, 5]), method='trapz')
-    > array([0.5, 1., 1., 1., 0.5])
-    _integration_weights(np.array([1, 2, 3, 4, 5]), method='simpson')
-    > array([0.33333333, 1.33333333, 0.66666667, 1.33333333, 0.33333333])
+        An estimation of the variance of the noise.
 
     References
     ----------
-    * https://en.wikipedia.org/wiki/Trapezoidal_rule
-    * https://en.wikipedia.org/wiki/Simpson%27s_rule
+    .. [1] Hall, P., Kay, J.W. and Titterington, D.M. (1990). Asymptotically
+        Optimal Difference-Based Estimation of Variance in Nonparametric
+        Regression. Biometrika 77, 521--528.
 
     """
-    if method == 'trapz':
-        weights = 0.5 * np.concatenate(
-            (
-                np.array([x[1] - x[0]]),
-                2 * (x[1:(len(x) - 1)] - x[:(len(x) - 2)]),
-                np.array([x[len(x) - 1] - x[len(x) - 2]])
-            ), axis=None
-        )
-    elif method == 'simpson':
-        weights = np.concatenate(
-            (
-                np.array([x[1] - x[0]]),
-                [
-                    4 * h if idx % 2 == 0 else 2 * h
-                    for idx, h in enumerate(
-                        x[1:(len(x) - 1)] - x[:(len(x) - 2)]
-                    )
-                ],
-                np.array([x[len(x) - 1] - x[len(x) - 2]])
-            ), axis=None
-        ) / 3
-    elif callable(method):
-        weights = method(x)
-    else:
-        raise NotImplementedError(f"{method} not implemented!")
-    return weights  # type: ignore
+    if order < 1 or order > 10:
+        raise ValueError("The order has to be between 1 and 10.")
+    if len(x) < order + 1:
+        return 0
+    weights = DIFF_SEQUENCES.get(order)
+    return np.nanmean(
+        [
+            np.matmul(weights, x[idx : (idx + order + 1)]) ** 2
+            for idx in range(len(x) - order)
+        ]
+    )

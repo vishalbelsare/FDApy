@@ -6,3 +6,5 @@ exclude_paths:
     - 'examples/**'
     - 'tests/**'
     - 'docs/**'
+    - '.github/**'
+    - 'joss/**'

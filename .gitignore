@@ -6,6 +6,7 @@ FDApy.sublime-workspace
 
 # Visual code project
 FDApy.code-workspace
+.vscode
 
 # Compiled python modules
 *.pyc
@@ -41,9 +42,14 @@ notebooks/*
 # Build docs files
 docs/_build/*
 docs/_static/*
-docs/_templates/*
 docs/auto_examples/*
 docs/backreferences/*
+docs/modules/autosummary/*
+
+# Test files
+.junit/*
+.pytest_cache/*
+tests/__pycache__/*
 
 # Coverage files
 htmlcov/*
@@ -51,4 +57,3 @@ htmlcov/*
 
 # Mac files
 .DS_Store
-

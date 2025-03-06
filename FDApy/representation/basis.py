@@ -1,369 +1,443 @@
 #!/usr/bin/env python
 # -*-coding:utf8 -*
 
-"""Basis functions.
-
-This module is used to define a Basis class and diverse classes derived from
-it. These are used to define basis of functions as DenseFunctionalData object.
 """
+Basis
+-----
+
+"""
+from __future__ import annotations
+
+import itertools
 import numpy as np
 import numpy.typing as npt
-import scipy
 
-from patsy import bs
-from typing import Any, Dict, Optional
+from functools import reduce
+from scipy.integrate import simpson
 
-from .functional_data import DenseFunctionalData
-from .functional_data import _tensor_product
+from typing import List, Tuple
+
+from .functional_data import DenseFunctionalData, MultivariateFunctionalData
+
+from .argvals import DenseArgvals
+from .values import DenseValues
+
+from ..misc.basis import _basis_wiener, _basis_legendre, _basis_fourier, _basis_bsplines
+from ..misc.utils import _inner_product
 
 
 #######################################################################
 # Definition of the basis (eigenfunctions)
-
-def basis_legendre(
-    argvals: npt.NDArray[np.float64],
-    n_functions: int = 3,
-) -> npt.NDArray[np.float64]:
-    r"""Define Legendre basis of function.
-
-    Build a basis of :math:`K` functions using Legendre polynomials on the
-    interval defined by ``argvals``.
-
-    Parameters
-    ----------
-    argvals: numpy.ndarray
-        The values on which evaluated the Legendre polynomials.
-    n_functions: int, default=3
-        Maximum degree of the Legendre polynomials.
-
-    Returns
-    -------
-    values: np.ndarray, shape=(n_functions, len(argvals))
-        An array containing the evaluation of `n_functions` functions of
-        Legendre basis.
-
-    Notes
-    -----
-    The Legendre basis is defined by induction as:
-
-    .. math::
-        (n + 1)P_{n + 1}(t) = (2n + 1)tP_n(t) - nP_{n - 1}(t), \quad\text{for}
-        \quad n \geq 1,
-
-    with :math:`P_0(t) = 1` and :math:`P_1(t) = t`.
-
-    Examples
-    --------
-    >>> basis_legendre(argvals=np.arange(-1, 1, 0.1), n_functions=3)
-
-    """
-    values = np.empty((n_functions, len(argvals)))
-    for degree in np.arange(0, n_functions):
-        legendre = scipy.special.eval_legendre(degree, argvals)
-        values[degree, :] = legendre
-    return values
-
-
-def basis_wiener(
-    argvals: npt.NDArray[np.float64],
-    n_functions: int = 3
-) -> npt.NDArray[np.float64]:
-    r"""Define Wiener basis of function.
-
-    Build a basis of :math:`K` functions using the eigenfunctions of a Wiener
-    process on the interval defined by ``argvals``.
-
-    Parameters
-    ----------
-    argvals: numpy.ndarray
-        The values on which the eigenfunctions of a Wiener process are
-        evaluated.
-    n_functions: int, default=3
-        Number of functions to consider.
-
-    Returns
-    -------
-    values: np.ndarray, shape=(n_functions, len(argvals))
-        An array containing the evaluation of `n_functions` functions of
-        Wiener basis.
-
-    Notes
-    -----
-    The Wiener basis is defined as the eigenfunctions of the Brownian motion:
-
-    .. math::
-        \phi_k(t) = \sqrt{2}\sin\left(\left(k - \frac{1}{2}\right)\pi t\right),
-        \quad 1 \leq k \leq K
-
-    Example
-    -------
-    >>> basis_wiener(argvals=np.arange(0, 1, 0.05), n_functions=3)
-
-    """
-    values = np.empty((n_functions, len(argvals)))
-    for degree in np.arange(1, n_functions + 1):
-        wiener = np.sqrt(2) * np.sin((degree - 0.5) * np.pi * argvals)
-        values[(degree - 1), :] = wiener
-    return values
-
-
-def basis_fourier(
-    argvals: npt.NDArray[np.float64],
-    n_functions: int = 3,
-    period: float = 2 * np.pi,
-) -> npt.NDArray[np.float64]:
-    r"""Define Fourier basis of function.
-
-    Build a basis of :math:`K` functions using Fourier series on the
-    interval defined by ``argvals``.
-
-    Parameters
-    ----------
-    argvals: numpy.ndarray
-        The values on which evaluated the Fourier series.
-    n_functions: int, default=3
-        Number of considered Fourier series. Should be odd.
-    period: float, default=2*numpy.pi
-        The period of the circular functions.
-
-    Returns
-    -------
-    values: np.ndarray, shape=(n_functions, len(argvals))
-        An array containing the evaluation of `n_functions` functions of
-        Wiener basis.
-
-    Notes
-    -----
-    The Fourier basis is defined as:
-
-    .. math::
-        \Phi(t) = \left(1, \sin(\omega t), \cos(\omega t), \dots \right)
-
-    where :math:`\omega` is the period.
-
-    Examples
-    --------
-    >>> basis_fourier(argvals=np.arange(0, 2*np.pi, 0.1), n_functions=3)
-
-    """
-    n_functions = n_functions + 1 if n_functions % 2 == 0 else n_functions
-    values = np.ones((n_functions, len(argvals)))
-    for k in np.arange(1, (n_functions + 1) // 2):
-        sin = np.sin(2 * np.pi * k * argvals / period)
-        cos = np.cos(2 * np.pi * k * argvals / period)
-        values[(2 * k - 1), :] = sin
-        values[(2 * k), :] = cos
-    return values[:n_functions, :]
-
-
-def basis_bsplines(
-    argvals: npt.NDArray[np.float64],
-    n_functions: int = 5,
-    degree: int = 3,
-    knots: Optional[npt.NDArray[np.float64]] = None,
-) -> npt.NDArray[np.float64]:
-    """Define B-splines basis of function.
-
-    Build a basis of :math:`n_functions` functions using B-splines basis on the
-    interval defined by ``argvals``.
-
-    Parameters
-    ----------
-    argvals: numpy.ndarray
-        The values on which evaluated the B-splines.
-    n_functions: int, default=5
-        Number of considered B-splines.
-    degree: int, default=3
-        Degree of the B-splines. The default gives cubic splines.
-    knots: numpy.ndarray, (n_knots,)
-        Specify the break points defining the B-splines. If ``knots``
-        are provided, the provided value of ``n_functions`` is ignored. And the
-        number of basis functions is ``n_knots + degree - 1``.
-
-    Returns
-    -------
-    values: np.ndarray, shape=(n_functions, len(argvals))
-        An array containing the evaluation of `n_functions` functions of
-        Wiener basis.
-
-    Examples
-    --------
-    >>> basis_bsplines(argvals=np.arange(0, 1, 0.01), n_functions=5)
-
-    """
-    if knots is not None:
-        n_knots = len(knots)
-        n_functions = n_knots + degree - 1
-    else:
-        n_knots = n_functions - degree + 1
-        knots = np.linspace(argvals[0], argvals[-1], n_knots)
-
-    values = bs(
-        argvals, df=n_functions, knots=knots[1:-1],
-        degree=degree, include_intercept=True
-    )
-    return values.T  # type: ignore
-
-
-def simulate_basis(
+def _simulate_basis(
     name: str,
     argvals: npt.NDArray[np.float64],
-    n_functions: int = 3,
-    norm: bool = False,
-    **kwargs: Any
+    n_functions: int = 5,
+    is_normalized: bool = False,
+    add_intercept: bool = True,
+    **kwargs,
 ) -> npt.NDArray[np.float64]:
     """Redirect to the right simulation basis function.
 
     Parameters
     ----------
-    name: str, {'legendre', 'wiener', 'fourier', 'bsplines'}
+    name
         Name of the basis to use.
-    argvals: numpy.ndarray
+    argvals
         The values on which the basis functions are evaluated.
-    n_functions: int, default=3
+    n_functions
         Number of functions to compute.
-    norm: boolean
+    is_normalized
         Should we normalize the functions?
-
-    Keyword Args
-    ------------
-    period: float, default = 2*numpy.pi
-        The period of the circular functions for the Fourier basis.
-    degree: int, default = 3
-        Degree of the B-splines. The default gives cubic splines.
-    knots: numpy.ndarray, (n_knots,)
-        Specify the break points defining the B-splines.
+    add_intercept
+        Should the constant functions be into the basis?
+    kwargs
+        Other keyword arguments are passed to the function
+        :meth:`misc.basis._basis_bsplines`.
 
     Returns
     -------
-    values: np.ndarray, shape=(n_functions, len(argvals))
-        An array containing the evaluation of `n_functions` functions of
-        Wiener basis.
+    values: npt.NDArray[np.float64], shape=(n_functions, len(argvals))
+        An array containing the evaluation of `n_functions` functions.
 
     Example
     -------
-    >>> simulate_basis('legendre', n_functions=3,
-    >>>                argvals=np.arange(-1, 1, 0.1), norm=True)
+    >>> _simulate_basis(
+    ...     'legendre',
+    ...     n_functions=3,
+    ...     argvals=np.arange(-1, 1, 0.1),
+    ...     is_normalized=True
+    ... )
 
     """
-    if name == 'legendre':
-        values = basis_legendre(argvals, n_functions)
-    elif name == 'wiener':
-        values = basis_wiener(argvals, n_functions)
-    elif name == 'fourier':
-        values = basis_fourier(
-            argvals, n_functions, kwargs.get('period', 2 * np.pi)
-        )
-    elif name == 'bsplines':
-        values = basis_bsplines(
-            argvals, n_functions,
-            kwargs.get('degree', 3), kwargs.get('knots', None)
+    if not add_intercept:
+        n_functions = n_functions + 1
+
+    if name == "legendre":
+        values = _basis_legendre(argvals, n_functions)
+    elif name == "wiener":
+        values = _basis_wiener(argvals, n_functions)
+    elif name == "fourier":
+        values = _basis_fourier(argvals, n_functions)
+    elif name == "bsplines":
+        values = _basis_bsplines(
+            argvals,
+            n_functions,
+            degree=kwargs.get("degree", 3),
+            domain_min=kwargs.get("domain_min", np.min(argvals)),
+            domain_max=kwargs.get("domain_max", np.max(argvals)),
         )
     else:
-        raise NotImplementedError(f'Basis {name!r} not implemented!')
+        raise NotImplementedError(f"Basis {name!r} not implemented!")
 
-    if norm:
-        norm2 = np.sqrt(scipy.integrate.simpson(values * values, argvals))
+    if is_normalized:
+        norm2 = np.sqrt(simpson(values * values, x=argvals))
         values = np.divide(values, norm2[:, np.newaxis])
-    return values
+
+    if add_intercept:
+        return values
+    else:
+        return values[1:]
 
 
 ###############################################################################
 # Class Basis
-
-class Basis(
-    DenseFunctionalData
-):
-    r"""A functional data object representing an orthogonal basis of functions.
+class Basis(DenseFunctionalData):
+    r"""Define univariate orthonormal basis.
 
     Parameters
     ----------
-    name: str, {'legendre', 'wiener', 'fourier', 'bsplines'}
-        Denotes the basis of functions to use.
-    n_functions: int
+    name
+        Denotes the basis of functions to use. The default is `bsplines`. If
+        `name=given`, it uses a user defined basis (defined with the `argvals` and
+        `values` parameters). For higher dimensional data, `name` is a tuple for the
+        marginal basis.
+    n_functions
         Number of functions in the basis.
-    dimension: str, ('1D', '2D'), default='1D'
-        Dimension of the basis to simulate. If '2D', the basis is simulated as
-        the tensor product of the one dimensional basis of functions by itself.
-        The number of functions in the 2D basis will be :math:`n_function^2`.
-    argvals: dict
-        The sampling points of the functional data. Each entry of the
-        dictionary represents an input dimension. The shape of the :math:`j`th
-        dimension is :math:`(m_j,)` for :math:`0 \leq j \leq p`.
-    norm: bool, default=False
+    argvals
+        The sampling points of the functional data.
+    values
+        The values of the functional data. Only used if `name='given'`.
+    is_normalized
         Should we normalize the basis function?
+    add_intercept
+        Should the constant functions be into the basis?
+    kwargs
+        Other keyword arguments are passed to the function
+        :meth:`representation.basis._simulate_basis`.
 
-    Keyword Args
-    ------------
-    period: float, default = 2*numpy.pi
-        The period of the circular functions for the Fourier basis.
-    degree: int, default = 3
-        Degree of the B-splines. The default gives cubic splines.
-    knots: numpy.ndarray, (n_knots,)
-        Specify the break points defining the B-splines.
+    Attributes
+    ----------
+    argvals_stand: DenseArgvals
+        Standardized sampling points of the functional data.
+    n_obs: int
+        Number of observations of the functional data.
+    n_dimension: int
+        Number of input dimension of the functional data.
+    n_points: Tuple[int, ...]
+        Number of sampling points.
+
+    References
+    ----------
+    .. [1] Benko, M., Härdle, W. and Kneip, A. (2009). Common functional
+        principal components. The Annals of Statistics 37, 1--34.
+    .. [2] Cai, T.T., Yuan, M., (2011), Optimal estimation of the mean
+        function based on discretely sampled functional data: Phase
+        transition. The Annals of Statistics 39, 2330-2355.
+    .. [3] Chiou, J.-M., Chen, Y.-T., Yang, Y.-F. (2014). Multivariate
+        Functional Principal Component Analysis: A Normalization Approach.
+        Statistica Sinica 24, 1571--1596.
+    .. [4] Eilers, P. H. C., Marx, B. D. (2021). Practical Smoothing: The Joys
+        of P-splines. Cambridge University Press, Cambridge.
+    .. [5] Hall, P., Kay, J.W. and Titterington, D.M. (1990).
+        Asymptotically Optimal Difference-Based Estimation of Variance in
+        Nonparametric Regression. Biometrika 77, 521--528.
+    .. [6] Happ, C., Greven, S. (2018). Multivariate Functional Principal
+        Component Analysis for Data Observed on Different (Dimensional)
+        Domains. Journal of the American Statistical Association 113, 649--659.
+    .. [7] Ramsay, J. O. and Silverman, B. W. (2005), Functional Data
+        Analysis, Springer Science, Chapter 8.
+    .. [8] Tsybakov, A.B. (2008), Introduction to Nonparametric Estimation.
+        Springer Series in Statistics.
 
     """
 
+    ###########################################################################
+    # Magic methods
     def __init__(
         self,
-        name: str,
-        n_functions: int,
-        dimension: str = '1D',
-        argvals: Optional[Dict[str, npt.NDArray[np.float64]]] = None,
-        norm: bool = False,
-        **kwargs: Any
+        name: Tuple[str] | str = "bsplines",
+        n_functions: Tuple[int] | int = 5,
+        argvals: DenseArgvals | None = None,
+        values: DenseValues | None = None,
+        is_normalized: bool = False,
+        add_intercept: bool = True,
+        **kwargs,
     ) -> None:
         """Initialize Basis object."""
+        if name == "given":
+            n_functions = values.n_obs
         self.name = name
-        self.norm = norm
-        self.dimension = dimension
+        self.n_functions = n_functions
+        self.is_normalized = is_normalized
+        self.add_intercept = add_intercept
 
         if argvals is None:
-            argvals = {'input_dim_0': np.arange(0, 1.01, 0.01)}
-
-        if len(argvals) > 1:
-            raise NotImplementedError(
-                'Only one dimensional basis are implemented.'
+            argvals = DenseArgvals(
+                {
+                    f"input_dim_{idx}": np.arange(0, 1.1, 0.1)
+                    for idx in np.arange(len(self.n_functions))
+                }
             )
 
-        values = simulate_basis(
-            name, argvals['input_dim_0'], n_functions, norm, **kwargs
-        )
+        if name != "given":
+            values_list = []
+            for name, n_function, argval in zip(
+                self.name, self.n_functions, argvals.values()
+            ):
+                temp = _simulate_basis(
+                    name, argval, n_function, is_normalized, add_intercept, **kwargs
+                )
+                values_list.append(temp)
 
-        if dimension == '1D':
-            super().__init__(argvals, values)
-        elif dimension == '2D':
-            basis1d = DenseFunctionalData(argvals, values)
-            basis2d = _tensor_product(basis1d, basis1d)
-            super().__init__(basis2d.argvals, basis2d.values)
-        else:
-            raise ValueError(f"{dimension} is not a valid dimension!")
+            values = DenseValues(
+                reduce(np.kron, values_list).reshape(
+                    (np.prod(self.n_functions), *argvals.n_points)
+                )
+            )
+        super().__init__(argvals, values)
 
+    ###########################################################################
+
+    ###########################################################################
+    # Properties
     @property
-    def name(self) -> str:
+    def name(self) -> Tuple[str]:
         """Getter for name."""
         return self._name
 
     @name.setter
-    def name(self, new_name: str) -> None:
-        if not isinstance(new_name, str):
-            raise TypeError(f'{new_name!r} has to be `str`.')
+    def name(self, new_name: Tuple[str] | str) -> None:
+        if isinstance(new_name, str):
+            new_name = (new_name,)
         self._name = new_name
 
     @property
-    def norm(self) -> bool:
-        """Getter for norm."""
-        return self._norm
+    def n_functions(self) -> Tuple[int]:
+        """Getter for n_functions."""
+        return self._n_functions
 
-    @norm.setter
-    def norm(self, new_norm: bool) -> None:
-        self._norm = new_norm
+    @n_functions.setter
+    def n_functions(self, new_n_functions: Tuple[int] | int) -> None:
+        if isinstance(new_n_functions, int):
+            new_n_functions = (new_n_functions,)
+        self._n_functions = new_n_functions
 
     @property
-    def dimension(self) -> str:
-        """Getter for dimension."""
-        return self._dimension
+    def is_normalized(self) -> bool:
+        """Getter for is_normalized."""
+        return self._is_normalized
 
-    @dimension.setter
-    def dimension(self, new_dimension: str) -> None:
-        self._dimension = new_dimension
+    @is_normalized.setter
+    def is_normalized(self, new_is_normalized: bool) -> None:
+        self._is_normalized = new_is_normalized
+
+    @property
+    def add_intercept(self) -> bool:
+        """Getter for add_intercept."""
+        return self._add_intercept
+
+    @add_intercept.setter
+    def add_intercept(self, new_add_intercept: bool) -> None:
+        self._add_intercept = new_add_intercept
+
+    ###########################################################################
+    # Methods
+    def inner_product(
+        self,
+        method_integration: str = "trapz",
+        method_smoothing: str | None = None,
+        noise_variance: float | None = None,
+        **kwargs,
+    ) -> npt.NDArray[np.float64]:
+        # Get parameters
+        n_obs = self.n_obs
+        axis = [argvals for argvals in self.argvals.values()]
+
+        inner_mat = np.zeros((n_obs, n_obs))
+        for i, j in itertools.product(np.arange(n_obs), repeat=2):
+            if i <= j:
+                inner_mat[i, j] = _inner_product(
+                    self.values[i], self.values[j], *axis, method=method_integration
+                )
+
+        # Estimate the diagonal of the inner-product matrix
+        inner_mat[np.abs(inner_mat) < 1e-12] = 0
+        inner_mat = inner_mat + inner_mat.T
+        np.fill_diagonal(inner_mat, np.diag(inner_mat) / 2)
+
+        try:
+            np.linalg.cholesky(inner_mat)
+        except np.linalg.LinAlgError as error:
+            from statsmodels.stats.correlation_tools import cov_nearest
+
+            print(f"The inner product has been made positive definite ({error}).")
+            inner_mat = cov_nearest(inner_mat)
+            # inner_mat = 1e-10 * np.eye(inner_mat.shape[0])
+
+        self._inner_product_matrix = inner_mat
+        return self._inner_product_matrix
+
+    ###########################################################################
+
+
+###############################################################################
+# Class MultivariateBasis
+class MultivariateBasis(MultivariateFunctionalData):
+    r"""Define multivariate orthonormal basis.
+
+    Parameters
+    ----------
+    name
+        Name of the basis to use. One of
+        `{'legendre', 'wiener', 'fourier', 'bsplines'}`.
+    n_functions
+        Number of functions in the basis.
+    argvals
+        The sampling points of the functional data.
+    values
+        The values of the functional data. Only used if `name='given'`.
+    is_normalized
+        Should we normalize the basis function?
+    kwargs
+        Other keywords arguments are passed to the function
+        :meth:`representation.basis.Basis`.
+
+    Attributes
+    ----------
+    n_obs: int
+        Number of observations of the functional data.
+    n_functional: int
+        Number of components of the multivariate functional data.
+    n_dimension: List[int]
+        Number of input dimension of the functional data.
+    n_points: List[Dict[str, int]]
+        Number of sampling points.
+
+    References
+    ----------
+    .. [1] Benko, M., Härdle, W. and Kneip, A. (2009). Common functional
+        principal components. The Annals of Statistics 37, 1--34.
+    .. [2] Chiou, J.-M., Chen, Y.-T., Yang, Y.-F. (2014). Multivariate
+        Functional Principal Component Analysis: A Normalization Approach.
+        Statistica Sinica 24, 1571--1596.
+    .. [3] Eilers, P. H. C., Marx, B. D. (2021). Practical Smoothing: The Joys
+        of P-splines. Cambridge University Press, Cambridge.
+    .. [4] Hall, P., Kay, J.W. and Titterington, D.M. (1990).
+        Asymptotically Optimal Difference-Based Estimation of Variance in
+        Nonparametric Regression. Biometrika 77, 521--528.
+    .. [5] Happ and Greven (2018), Multivariate Functional Principal
+        Component Analysis for Data Observed on Different (Dimensional)
+        Domains. Journal of the American Statistical Association, 113,
+        pp. 649--659.
+    .. [6] Tsybakov, A.B. (2008), Introduction to Nonparametric Estimation.
+        Springer Series in Statistics.
+    .. [7] Zhang, J.-T. and Chen J. (2007), Statistical Inferences for
+        Functional Data, The Annals of Statistics, Vol. 35, No. 3.
+
+    """
+
+    ###########################################################################
+    # Magic methods
+    def __init__(
+        self,
+        name: List[Tuple[str] | str] = ["fourier", "legendre"],
+        n_functions: List[Tuple[int] | int] = [5, 5],
+        argvals: List[DenseArgvals] | None = None,
+        values: List[DenseValues] | None = None,
+        is_normalized: bool = False,
+        add_intercept: bool = True,
+        **kwargs,
+    ) -> None:
+        """Initialize MultivariateBasis object."""
+        self.name = name
+        self.n_functions = n_functions
+        self.is_normalized = is_normalized
+        self.add_intercept = add_intercept
+
+        if argvals is None:
+            argvals = [
+                DenseArgvals(
+                    {
+                        f"input_dim_{idx}": np.arange(0, 1.1, 0.1)
+                        for idx in np.arange(len(component))
+                    }
+                )
+                for component in self.n_functions
+            ]
+
+        if name == "given":
+            basis_list = [
+                Basis(name="given", argvals=arg, values=val)
+                for arg, val in zip(argvals, values)
+            ]
+        else:
+            basis_list = [
+                Basis(
+                    name=name,
+                    n_functions=n_function,
+                    argvals=arg,
+                    is_normalized=is_normalized,
+                    add_intercept=add_intercept,
+                    **kwargs,
+                )
+                for n_function, name, arg in zip(self.n_functions, self.name, argvals)
+            ]
+        super().__init__(basis_list)
+
+    ###########################################################################
+
+    ###########################################################################
+    # Properties
+    @property
+    def name(self) -> str | List[str]:
+        """Getter for name."""
+        return self._name
+
+    @name.setter
+    def name(self, new_name: str | List[str]) -> None:
+        self._name = new_name
+
+    @property
+    def n_functions(self) -> List[Tuple[int]]:
+        """Getter for n_functions."""
+        return self._n_functions
+
+    @n_functions.setter
+    def n_functions(self, new_n_functions: List[Tuple[int] | int]) -> None:
+        temp = []
+        for n_function in new_n_functions:
+            if isinstance(n_function, int):
+                temp.append((n_function,))
+            else:
+                temp.append(n_function)
+        self._n_functions = temp
+
+    @property
+    def is_normalized(self) -> bool:
+        """Getter for is_normalized."""
+        return self._is_normalized
+
+    @is_normalized.setter
+    def is_normalized(self, new_is_normalized: bool) -> None:
+        self._is_normalized = new_is_normalized
+
+    @property
+    def add_intercept(self) -> bool:
+        """Getter for add_intercept."""
+        return self._add_intercept
+
+    @add_intercept.setter
+    def add_intercept(self, new_add_intercept: bool) -> None:
+        self._add_intercept = new_add_intercept
+
+    ###########################################################################

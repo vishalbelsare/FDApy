@@ -11,44 +11,61 @@ FDApy: a Python package to analyze functional data
 		:target: https://pypi.org/project/FDApy/
 		:alt: PyPI
 
-.. image:: https://app.travis-ci.com/StevenGolovkine/FDApy.svg?branch=master
-    	:target: https://app.travis-ci.com/StevenGolovkine/FDApy
+.. image:: https://github.com/StevenGolovkine/FDApy/actions/workflows/python_package_ubuntu.yaml/badge.svg
+		:target: https://github.com/StevenGolovkine/FDApy/actions
+		:alt: Github - Workflow
 
-.. image:: https://img.shields.io/pypi/l/FDApy
+.. image:: https://img.shields.io/badge/License-MIT-blue.svg
 		:target: https://raw.githubusercontent.com/StevenGolovkine/FDApy/master/LICENSE
 		:alt: PyPI - License
 
-.. image:: https://app.codacy.com/project/badge/Grade/3d9062cffc304ad4bb7c76bf97cc965c    
-		:target: https://www.codacy.com/gh/StevenGolovkine/FDApy/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=StevenGolovkine/FDApy&amp;utm_campaign=Badge_Grade
+.. image:: https://codecov.io/gh/StevenGolovkine/FDApy/branch/master/graph/badge.svg?token=S2H0D3QQMR 
+ 		:target: https://codecov.io/gh/StevenGolovkine/FDApy
+		:alt: Coverage
+
+.. image:: https://app.codacy.com/project/badge/Grade/3d9062cffc304ad4bb7c76bf97cc965c
+		:target: https://app.codacy.com/gh/StevenGolovkine/FDApy/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade
 		:alt: Code Quality
 
 .. image:: https://readthedocs.org/projects/fdapy/badge/?version=latest
 		:target: https://fdapy.readthedocs.io/en/latest/?badge=latest
 		:alt: Documentation Status
 
+.. image:: https://joss.theoj.org/papers/10.21105/joss.07526/status.svg
+		:target: https://doi.org/10.21105/joss.07526
+		:alt: JOSS
+
 .. image:: https://zenodo.org/badge/155183454.svg
    		:target: https://zenodo.org/badge/latestdoi/155183454
    		:alt: DOI
 
+.. image:: https://img.shields.io/github/all-contributors/StevenGolovkine/FDApy?color=ee8449&style=flat-square
+		:target: https://github.com/StevenGolovkine/FDApy/blob/master/CONTRIBUTORS.md
+		:alt: Contributors
+		
+
 Description
 ===========
 
-Functional Data Analysis, usually referred as FDA, concerns the field of Statistics that deals with discrete observations of continuous :math:`d`-dimensional functions.
+Functional data analysis (FDA) is a statistical methodology for analyzing data that can be characterized as functions. These functions could represent measurements taken over time, space, frequency, probability, etc. The goal of FDA is to extract meaningful information from these functions and to model their behavior.
 
-This package provide modules for the analysis of such data. It includes methods for different dimensional data as well as irregularly sampled functional data. An implementation of (multivariate) functional principal component analysis is also given. Moreover, a simulation toolbox is provided. It might be used to simulate different clusters of functional data.
-Check out the documentation for more complete information on the available features within the package.
+The package aims to provide functionalities for creating and manipulating general functional data objects. It thus supports the analysis of various types of functional data, whether densely or irregularly sampled, multivariate, or multidimensional. Functional data can be represented over a grid of points or using a basis of functions. *FDApy* implements dimension reduction techniques and smoothing methods, facilitating the extraction of patterns from complex functional datasets. A large simulation toolbox, based on basis decomposition, is provided. It allows to configure parameters for simulating different clusters within the data. Finally, some visualization tools are also available.
+
+Check out the `examples <https://fdapy.readthedocs.io/en/latest/auto_examples/index.html>`_ for an overview of the package functionalities.
+
+Check out the `API reference <https://fdapy.readthedocs.io/en/latest/modules.html>`_ for an exhaustive list of the available features within the package.
+
 
 Documentation
 =============
 
-The documentation is available at `https://fdapy.readthedocs.io/en/stable/`_, which included detailled information about API references and several examples presenting the different functionalities.
+The documentation is available `here <https://fdapy.readthedocs.io/en/stable/>`__, which included detailled information about API references and several examples presenting the different functionalities.
 
-The documentation of the latest version can be found at `https://fdapy.readthedocs.io/en/latest/`_.
 
 Installation
 ============
 
-Up to now, *FDApy* is availlable in Python 3.9 on any Linux platforms. The stable version can be installed via `PyPI <https://pypi.org/project/FDApy/>`_:
+Up to now, *FDApy* is availlable in Python 3.10 on any Linux platforms. The stable version can be installed via `PyPI <https://pypi.org/project/FDApy/>`_:
 
 .. code::
 	
@@ -69,19 +86,52 @@ Requirements
 
 *FDApy* depends on the following packages:
 
+* `lazy_loader <https://github.com/scientific-python/lazy-loader>`_ - A loader for Python submodules
 * `matplotlib <https://github.com/matplotlib/matplotlib>`_ - Plotting with Python
-* `numpy <https://github.com/numpy/numpy>`_ - The fundamental package for scientific computing with Python
-* `pandas <https://github.com/pandas-dev/pandas>`_ - Powerful Python data analysis toolkit
-* `patsy <https://github.com/pydata/patsy>`_ - Describing statisticals models in Python using symbolic formulas. 
-* `pygam <https://github.com/dswah/pyGAM>`_ - Generalized Additive Models in Python
-* `scikit-learn <https://github.com/scikit-learn/scikit-learn>`_ - Machine learning in Python
-* `scipy <https://github.com/scipy/scipy>`_ - Scientific computation in Python
+* `numpy <https://github.com/numpy/numpy>`_ (< 2.0.0) - The fundamental package for scientific computing with Python
+* `pandas <https://github.com/pandas-dev/pandas>`_ (>= 2.0.0)- Powerful Python data analysis toolkit
+* `scikit-learn <https://github.com/scikit-learn/scikit-learn>`_ (>= 1.2.0)- Machine learning in Python
+* `scipy <https://github.com/scipy/scipy>`_ (>= 1.10.0) - Scientific computation in Python
+
+
+Citing FDApy
+============
+
+If you use FDApy in a scientific publication, we would appreciate citations to the following software repository:
+
+.. code-block::
+
+  @misc{golovkine_2024_fdapy,
+    author = {Golovkine, Steven},
+    doi = {10.5281/zenodo.3891521},
+    title = {FDApy: A Python Package to analyze functional data},
+    url = {https://github.com/StevenGolovkine/FDApy},
+    year = {2024}
+  }
+
+You may also cite the paper:
+
+.. code-block::
+
+  @article{golovkine_2024_fdapy_paper,
+  	title = {{{FDApy}}: A {{Python}} Package for Functional Data},
+	author = {Golovkine, Steven},
+  	date = {2025-03-04},
+  	journaltitle = {Journal of Open Source Software},
+  	volume = {10},
+  	number = {107},
+  	pages = {7526},
+  	issn = {2475-9066},
+  	doi = {10.21105/joss.07526},
+  	url = {https://joss.theoj.org/papers/10.21105/joss.07526}
+  }
+
 
 Contributing
 ============
 
 Contributions are welcome, and they are greatly appreciated! Every little bit
-helps, and credit will always be given. Contributing guidelines are provided `here <https://github.com/StevenGolovkine/FDApy/blob/master/CONTRIBUTING.rst>`_.
+helps, and credit will always be given. Contributing guidelines are provided `here <https://github.com/StevenGolovkine/FDApy/blob/master/CONTRIBUTING.rst>`_. The people involved in the development of the package can be found in the `contributors page <https://github.com/StevenGolovkine/FDApy/blob/master/CONTRIBUTORS.md>`_.
 
 License
 =======

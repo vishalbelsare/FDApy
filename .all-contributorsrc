@@ -1,0 +1,57 @@
+{
+  "projectName": "FDApy",
+  "projectOwner": "StevenGolovkine",
+  "files": [
+    "CONTRIBUTORS.md"
+  ],
+  "commitType": "docs",
+  "commitConvention": "angular",
+  "contributorsPerLine": 7,
+  "contributors": [
+    {
+      "login": "StevenGolovkine",
+      "name": "Steven",
+      "avatar_url": "https://avatars.githubusercontent.com/u/22517192?v=4",
+      "profile": "https://github.com/StevenGolovkine",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "edwardgunning",
+      "name": "Edward Gunning",
+      "avatar_url": "https://avatars.githubusercontent.com/u/56870103?v=4",
+      "profile": "https://edwardgunning.github.io/",
+      "contributions": [
+        "research"
+      ]
+    },
+    {
+      "login": "mstimberg",
+      "name": "Marcel Stimberg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1381982?v=4",
+      "profile": "https://marcel.stimberg.info",
+      "contributions": [
+        "review"
+      ]
+    },
+    {
+      "login": "vnmabus",
+      "name": "Carlos Ramos Carreño",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2364173?v=4",
+      "profile": "https://github.com/vnmabus",
+      "contributions": [
+        "review"
+      ]
+     },
+     {
+      "login": "quantgirluk",
+      "name": "Quant Girl",
+      "avatar_url": "https://avatars.githubusercontent.com/u/46248141?v=4",
+      "profile": "https://quantgirl.blog/",
+      "contributions": [
+        "review"
+      ]
+    }
+  ]
+}
